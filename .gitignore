@@ -1,0 +1,74 @@
+# Visual Studio / VS Code
+.vs/
+.vscode/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+x86/
+x64/
+ARM/
+ARM64/
+Win32/
+
+# MSBuild / Visual C++ intermediate files
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.ipch
+*.tlog
+*.log
+*.lastbuildstate
+*.pch
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.bsc
+*.vcxproj.user
+*.vcxproj.filters.user
+
+# Executables and libraries
+*.exe
+*.dll
+*.lib
+*.exp
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# vcpkg
+vcpkg/
+vcpkg_installed/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+*.cmake
+
+# Misc
+*.cache
+*.tmp
+*.bak
+*.swp
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
