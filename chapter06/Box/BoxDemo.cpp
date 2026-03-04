@@ -172,8 +172,12 @@ void BoxApp::BuildGeometryBuffers()
 void BoxApp::BuildShaders()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
+	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
 	ComPtr<ID3DBlob> compiledShader;
-	ComPtr<ID3DBlob> error;
+	ComPtr<ID3DBlob> errorMsg;
 	
 	// compile and create vertex shader
 	HRESULT hr = D3DCompileFromFile(
@@ -185,13 +189,14 @@ void BoxApp::BuildShaders()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		error.GetAddressOf()
+		errorMsg.GetAddressOf()
 	);
 	
 	if (FAILED(hr))
 	{
-		const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
-		MessageBox(NULL, msg.c_str(), NULL, MB_OK);
+		if (errorMsg) {
+			std::cerr << errorMsg->GetBufferPointer() << std::endl;
+		}
 		return;
 	}
 
@@ -207,14 +212,13 @@ void BoxApp::BuildShaders()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		error.GetAddressOf()
+		errorMsg.GetAddressOf()
 	);
 
 	if (FAILED(hr))
 	{
-		if (error) {
-			const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
-			MessageBox(NULL, msg.c_str(), NULL, MB_OK);
+		if (errorMsg) {
+			std::cerr << errorMsg->GetBufferPointer() << std::endl;
 		}
 		return;
 	}
@@ -225,8 +229,12 @@ void BoxApp::BuildShaders()
 void BoxApp::BuildVertexLayout()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
+	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
 	ComPtr<ID3DBlob> compiledShader;
-	ComPtr<ID3DBlob> error;
+	ComPtr<ID3DBlob> errorMsg;
 
 	HRESULT hr = D3DCompileFromFile(
 		L"color_vs.hlsl",
@@ -237,14 +245,13 @@ void BoxApp::BuildVertexLayout()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		error.GetAddressOf()
+		errorMsg.GetAddressOf()
 	);
 
 	if (FAILED(hr))
 	{
-		if (error) {
-			const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
-			MessageBox(NULL, msg.c_str(), NULL, MB_OK);
+		if (errorMsg) {
+			std::cerr << errorMsg->GetBufferPointer() << std::endl;
 		}
 		return;
 	}
