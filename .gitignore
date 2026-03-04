@@ -53,8 +53,9 @@ packages/
 *.snupkg
 
 # vcpkg
-vcpkg/
 vcpkg_installed/
+chapter*/vcpkg_installed/
+chapter*/**/vcpkg_installed/
 
 # CMake
 CMakeFiles/
