@@ -46,6 +46,7 @@ public:
 protected:
 	bool InitMainWindow();
 	bool InitDirect3D();
+	bool InitConsole();
 
 	void CalculateFrameStats();
 

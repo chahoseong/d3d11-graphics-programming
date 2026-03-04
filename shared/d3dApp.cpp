@@ -5,6 +5,7 @@
 #include "d3dApp.h"
 
 #include <sstream>
+#include <iostream>
 
 #include <WindowsX.h>
 
@@ -61,6 +62,8 @@ D3DApp::~D3DApp()
 	if (md3dImmediateContext) {
 		md3dImmediateContext->ClearState();
 	}
+
+	FreeConsole();
 }
 
 HINSTANCE D3DApp::AppInst()const
@@ -115,6 +118,10 @@ bool D3DApp::Init()
 	}
 
 	if (!InitDirect3D()) {
+		return false;
+	}
+
+	if (!InitConsole()) {
 		return false;
 	}
 
@@ -442,6 +449,22 @@ bool D3DApp::InitDirect3D()
 	// also need to be executed every time the window is resized.  So
 	// just call the OnResize method here to avoid code duplication.
 	OnResize();
+
+	return true;
+}
+
+bool D3DApp::InitConsole()
+{
+	if (!AllocConsole()) {
+		return false;
+	}
+
+	FILE* fp;
+	freopen_s(&fp, "CONOUT$", "w", stdout);
+	freopen_s(&fp, "CONOUT$", "w", stderr);
+	freopen_s(&fp, "CONIN$", "r", stdin);
+
+	SetConsoleOutputCP(CP_UTF8);
 
 	return true;
 }
