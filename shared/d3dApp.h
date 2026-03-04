@@ -14,6 +14,7 @@
 #include "GameTimer.h"
 
 #include <string>
+#include <iostream>
 
 #include <wrl.h>
 
