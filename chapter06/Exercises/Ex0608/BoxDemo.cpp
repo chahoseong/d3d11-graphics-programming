@@ -43,6 +43,8 @@ private:
 	ComPtr<ID3D11VertexShader> mVertexShader;
 	ComPtr<ID3D11PixelShader> mPixelShader;
 
+	ComPtr<ID3D11RasterizerState> mWireframeRS;
+
 	XMFLOAT4X4 mWorld;
 	XMFLOAT4X4 mView;
 	XMFLOAT4X4 mProj;
@@ -95,6 +97,7 @@ bool BoxApp::Init()
 	BuildShaders();
 	BuildVertexLayout();
 
+	// constant buffer
 	D3D11_BUFFER_DESC desc;
 	desc.Usage = D3D11_USAGE_DYNAMIC;
 	desc.ByteWidth = sizeof(XMFLOAT4X4);
@@ -103,6 +106,15 @@ bool BoxApp::Init()
 	desc.MiscFlags = 0;
 	desc.StructureByteStride = 0;
 	ThrowIfFailed(md3dDevice->CreateBuffer(&desc, nullptr, mConstantBuffer.GetAddressOf()));
+
+	// wireframe
+	D3D11_RASTERIZER_DESC wireframeDesc;
+	ZeroMemory(&wireframeDesc, sizeof(D3D11_RASTERIZER_DESC));
+	wireframeDesc.FillMode = D3D11_FILL_WIREFRAME;
+	wireframeDesc.CullMode = D3D11_CULL_BACK;
+	wireframeDesc.FrontCounterClockwise = false;
+	wireframeDesc.DepthClipEnable = true;
+	ThrowIfFailed(md3dDevice->CreateRasterizerState(&wireframeDesc, mWireframeRS.GetAddressOf()));
 
 	return true;
 }
@@ -258,7 +270,7 @@ void BoxApp::BuildVertexLayout()
 
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
@@ -310,8 +322,12 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->VSSetShader(mVertexShader.Get(), nullptr, 0);
 	md3dImmediateContext->PSSetShader(mPixelShader.Get(), nullptr, 0);
 
+	md3dImmediateContext->RSSetState(mWireframeRS.Get());
+
 	// draw model
 	md3dImmediateContext->DrawIndexed(36, 0, 0);
+
+	md3dImmediateContext->RSSetState(nullptr);
 
 	// present front buffer
 	ThrowIfFailed(mSwapChain->Present(0, 0));

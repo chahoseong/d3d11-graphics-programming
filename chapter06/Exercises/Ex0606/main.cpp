@@ -33,13 +33,15 @@ private:
 	void BuildGeometryBuffers();
 	void BuildShaders();
 	void BuildVertexLayout();
+	void BuildConstantBuffers();
 
 private:
 	ComPtr<ID3D11Buffer> mBoxVB;
 	ComPtr<ID3D11Buffer> mBoxIB;
 
 	ComPtr<ID3D11InputLayout> mInputLayout;
-	ComPtr<ID3D11Buffer> mConstantBuffer;
+	ComPtr<ID3D11Buffer> mPerObjectCB;
+	ComPtr<ID3D11Buffer> mPerFrameCB;
 	ComPtr<ID3D11VertexShader> mVertexShader;
 	ComPtr<ID3D11PixelShader> mPixelShader;
 
@@ -94,15 +96,7 @@ bool BoxApp::Init()
 	BuildGeometryBuffers();
 	BuildShaders();
 	BuildVertexLayout();
-
-	D3D11_BUFFER_DESC desc;
-	desc.Usage = D3D11_USAGE_DYNAMIC;
-	desc.ByteWidth = sizeof(XMFLOAT4X4);
-	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	desc.MiscFlags = 0;
-	desc.StructureByteStride = 0;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&desc, nullptr, mConstantBuffer.GetAddressOf()));
+	BuildConstantBuffers();
 
 	return true;
 }
@@ -258,10 +252,31 @@ void BoxApp::BuildVertexLayout()
 
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
+}
+
+void BoxApp::BuildConstantBuffers()
+{
+	D3D11_BUFFER_DESC objectcbd;
+	objectcbd.Usage = D3D11_USAGE_DYNAMIC;
+	objectcbd.ByteWidth = sizeof(XMFLOAT4X4);
+	objectcbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	objectcbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	objectcbd.MiscFlags = 0;
+	objectcbd.StructureByteStride = 0;
+	ThrowIfFailed(md3dDevice->CreateBuffer(&objectcbd, nullptr, mPerObjectCB.GetAddressOf()));
+
+	D3D11_BUFFER_DESC framecbd;
+	framecbd.Usage = D3D11_USAGE_DYNAMIC;
+	framecbd.ByteWidth = 16;	// constant buffer는 16바이트 정렬
+	framecbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	framecbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	framecbd.MiscFlags = 0;
+	framecbd.StructureByteStride = 0;
+	ThrowIfFailed(md3dDevice->CreateBuffer(&framecbd, nullptr, mPerFrameCB.GetAddressOf()));
 }
 
 void BoxApp::UpdateScene(float dt)
@@ -298,13 +313,21 @@ void BoxApp::DrawScene()
 	// 제대로 전달하려면 전치를 해야합니다.
 	XMMATRIX worldViewProj = XMMatrixTranspose(world * view * proj);
 
-	// update constant buffer
+	// update constant buffer per object
 	D3D11_MAPPED_SUBRESOURCE mapped = {};
-	md3dImmediateContext->Map(mConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	md3dImmediateContext->Map(mPerObjectCB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
 	memcpy(mapped.pData, &worldViewProj, sizeof(XMMATRIX));
-	md3dImmediateContext->Unmap(mConstantBuffer.Get(), 0);
+	md3dImmediateContext->Unmap(mPerObjectCB.Get(), 0);
 
-	md3dImmediateContext->VSSetConstantBuffers(0, 1, mConstantBuffer.GetAddressOf());
+	// update constant buffer per frame
+	ZeroMemory(&mapped, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	md3dImmediateContext->Map(mPerFrameCB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	*reinterpret_cast<float*>(mapped.pData) = mTimer.TotalTime();
+	md3dImmediateContext->Unmap(mPerFrameCB.Get(), 0);
+
+	// 사용하는 슬롯 순서에 맞게 구성해야한다.
+	ID3D11Buffer* cbs[] = { mPerFrameCB.Get(), mPerObjectCB.Get() };
+	md3dImmediateContext->VSSetConstantBuffers(0, 2, cbs);
 
 	// set shaders
 	md3dImmediateContext->VSSetShader(mVertexShader.Get(), nullptr, 0);

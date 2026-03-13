@@ -5,12 +5,13 @@
 
 
 using namespace DirectX;
+using namespace DirectX::PackedVector;
 using namespace Microsoft::WRL;
 
 struct Vertex
 {
 	XMFLOAT3 Pos;
-	XMFLOAT4 Color;
+	XMCOLOR Color;
 };
 
 class BoxApp : public D3DApp
@@ -110,15 +111,23 @@ bool BoxApp::Init()
 void BoxApp::BuildGeometryBuffers()
 {
 	Vertex vertices[] = {
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::White) },
-		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Black) },
-		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Red) },
-		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::Green) },
-		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Blue) },
-		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Yellow) },
-		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Cyan) },
-		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Magenta) }
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmColor(Colors::White) },
+		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmColor(Colors::Black) },
+		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmColor(Colors::Red) },
+		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmColor(Colors::Green) },
+		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmColor(Colors::Blue) },
+		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmColor(Colors::Yellow) },
+		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmColor(Colors::Cyan) },
+		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmColor(Colors::Magenta) }
 	};
+
+
+	// XMCOLOR는 색상 정보를 ARGB로 저장합니다.
+	// 이것이 메모리에는 BGRA로 저장되므로 입력 레이아웃과 맞지 않습니다(RGBA).
+	// 따라서 이것을 맞추기 위해서 XMCOLOR 데이터를 ABGR로 변경합니다.
+	for (int i = 0; i < 8; ++i) {
+		vertices[i].Color = Convert::ArgbToAbgr(vertices[i].Color);
+	}
 
 	D3D11_BUFFER_DESC vbd;
 	vbd.Usage = D3D11_USAGE_IMMUTABLE;
@@ -258,7 +267,7 @@ void BoxApp::BuildVertexLayout()
 
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));

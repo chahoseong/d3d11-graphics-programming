@@ -1,0 +1,14 @@
+상자 예제를 정점 버퍼 두 개를 사용하도록 수정하라. 좀 더 구체적으로, 정점의 위치 성분을 담은 정점 버퍼와
+정점 색상 성분을 담은 정점 버퍼를 사용하도록 수정해야 한다. `D3D11_INPUT_ELEMENT_DESC` 배열은 다음과
+같은 모습이어야 할 것이다.
+```cpp
+D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
+	{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+	 D3D11_INPUT_PER_VERTEX_DATA, 0},
+	{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0,
+	 D3D11_INPUT_PER_VERTEX_DATA, 0}
+};
+```
+이 경우 위치 성분은 입력 슬롯 0에 연결되고, 색상 성분은 입력 슬롯 1에 연결된다. 또한 두 성분 모두
+`D3D11_INPUT_ELEMENT_DESC::AlignedByteOffset`이 0이라는 점을 주목할 것. 이제는 위치 성분과
+색상 성분이 하나의 입력 슬롯에 교대로 들어가는 것이 아니라 각자 개별적인 입력 슬롯으로 들어가기 때문이다.

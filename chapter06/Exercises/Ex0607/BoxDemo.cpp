@@ -43,9 +43,18 @@ private:
 	ComPtr<ID3D11VertexShader> mVertexShader;
 	ComPtr<ID3D11PixelShader> mPixelShader;
 
-	XMFLOAT4X4 mWorld;
+	XMFLOAT4X4 mBoxWorld;
+	XMFLOAT4X4 mPyramidWorld;
 	XMFLOAT4X4 mView;
 	XMFLOAT4X4 mProj;
+
+	UINT boxIndexOffset = 0;
+	UINT boxIndexCount = 0;
+	UINT boxVertexOffset = 0;
+
+	UINT pyramidIndexOffset = 0;
+	UINT pyramidIndexCount = 0;
+	UINT pyramidVertexOffset = 0;
 
 	float mTheta = 1.5f * MathHelper::Pi;
 	float mPhi = 0.25f * MathHelper::Pi;
@@ -76,9 +85,12 @@ BoxApp::BoxApp(HINSTANCE hInstance)
 	mMainWndCaption = L"Box Demo";
 
 	XMMATRIX I = XMMatrixIdentity();
-	XMStoreFloat4x4(&mWorld, I);
 	XMStoreFloat4x4(&mView, I);
 	XMStoreFloat4x4(&mProj, I);
+
+	XMStoreFloat4x4(&mBoxWorld, I);
+
+	XMStoreFloat4x4(&mPyramidWorld, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f));
 }
 
 BoxApp::~BoxApp()
@@ -109,29 +121,18 @@ bool BoxApp::Init()
 
 void BoxApp::BuildGeometryBuffers()
 {
-	Vertex vertices[] = {
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::White) },
-		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Black) },
-		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Red) },
-		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::Green) },
-		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Blue) },
-		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Yellow) },
-		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Cyan) },
-		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Magenta) }
+	std::vector<Vertex> boxVertices = {
+		Vertex{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::White) },
+		Vertex{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Black) },
+		Vertex{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Red) },
+		Vertex{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::Green) },
+		Vertex{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Blue) },
+		Vertex{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Yellow) },
+		Vertex{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Cyan) },
+		Vertex{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Magenta) }
 	};
 
-	D3D11_BUFFER_DESC vbd;
-	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = sizeof(Vertex) * 8;
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vbd.CPUAccessFlags = 0;
-	vbd.MiscFlags = 0;
-	vbd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA vinitData;
-	vinitData.pSysMem = vertices;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&vbd, &vinitData, mBoxVB.GetAddressOf()));
-
-	UINT indices[] = {
+	std::vector<UINT> boxIndices = {
 		// front
 		0, 1, 2,
 		0, 2, 3,
@@ -157,15 +158,68 @@ void BoxApp::BuildGeometryBuffers()
 		4, 3, 7
 	};
 
+	std::vector<Vertex> pyramidVertices = {
+		Vertex{ XMFLOAT3(-0.5f, -0.5f, +0.5f), Convert::ToXmFloat4(Colors::Green) },
+		Vertex{ XMFLOAT3(+0.5f, -0.5f, +0.5f), Convert::ToXmFloat4(Colors::Green) },
+		Vertex{ XMFLOAT3(+0.5f, -0.5f, -0.5f), Convert::ToXmFloat4(Colors::Green) },
+		Vertex{ XMFLOAT3(-0.5f, -0.5f, -0.5f), Convert::ToXmFloat4(Colors::Green) },
+		Vertex{ XMFLOAT3(+0.0f, +0.5f, +0.0f), Convert::ToXmFloat4(Colors::Red) },
+	};
+
+	std::vector<UINT> pyramidIndices = {
+		// bottom
+		0, 3, 2,
+		0, 2, 1,
+
+		// front
+		3, 4, 2,
+
+		// back
+		1, 4, 0,
+
+		// left
+		0, 4, 3,
+
+		// right
+		2, 4, 1
+	};
+
+	boxIndexOffset = 0;
+	boxIndexCount = static_cast<UINT>(boxIndices.size());
+	boxVertexOffset = 0;
+
+	pyramidIndexOffset = boxIndexCount;
+	pyramidIndexCount = static_cast<UINT>(pyramidIndices.size());
+	pyramidVertexOffset = static_cast<UINT>(boxVertices.size());
+
+	std::vector<Vertex> totalVertices;
+	totalVertices.insert(totalVertices.end(), boxVertices.begin(), boxVertices.end());
+	totalVertices.insert(totalVertices.end(), pyramidVertices.begin(), pyramidVertices.end());
+
+	std::vector<UINT> totalIndices;
+	totalIndices.insert(totalIndices.end(), boxIndices.begin(), boxIndices.end());
+	totalIndices.insert(totalIndices.end(), pyramidIndices.begin(), pyramidIndices.end());
+
+	D3D11_BUFFER_DESC vbd;
+	vbd.Usage = D3D11_USAGE_IMMUTABLE;
+	vbd.ByteWidth = sizeof(Vertex) * static_cast<UINT>(totalVertices.size());
+	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vbd.CPUAccessFlags = 0;
+	vbd.MiscFlags = 0;
+	vbd.StructureByteStride = 0;
+	D3D11_SUBRESOURCE_DATA vinitData;
+	vinitData.pSysMem = &totalVertices[0];
+	ThrowIfFailed(md3dDevice->CreateBuffer(&vbd, &vinitData, mBoxVB.GetAddressOf()));
+
 	D3D11_BUFFER_DESC ibd;
 	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = sizeof(UINT) * 36;
+	ibd.ByteWidth = sizeof(UINT) * static_cast<UINT>(totalIndices.size());
 	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	ibd.CPUAccessFlags = 0;
 	ibd.MiscFlags = 0;
 	ibd.StructureByteStride = 0;
 	D3D11_SUBRESOURCE_DATA iinitData;
-	iinitData.pSysMem = indices;
+	iinitData.pSysMem = &totalIndices[0];
 	ThrowIfFailed(md3dDevice->CreateBuffer(&ibd, &iinitData, mBoxIB.GetAddressOf()));
 }
 
@@ -258,7 +312,7 @@ void BoxApp::BuildVertexLayout()
 
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
@@ -291,18 +345,8 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->IASetVertexBuffers(0, 1, mBoxVB.GetAddressOf(), &stride, &offset);
 	md3dImmediateContext->IASetIndexBuffer(mBoxIB.Get(), DXGI_FORMAT_R32_UINT, 0);
 
-	XMMATRIX world = XMLoadFloat4x4(&mWorld);
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
-	// direct3d는 행 벡터, hlsl은 열 벡터를 사용하므로 hlsl에 값을
-	// 제대로 전달하려면 전치를 해야합니다.
-	XMMATRIX worldViewProj = XMMatrixTranspose(world * view * proj);
-
-	// update constant buffer
-	D3D11_MAPPED_SUBRESOURCE mapped = {};
-	md3dImmediateContext->Map(mConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-	memcpy(mapped.pData, &worldViewProj, sizeof(XMMATRIX));
-	md3dImmediateContext->Unmap(mConstantBuffer.Get(), 0);
 
 	md3dImmediateContext->VSSetConstantBuffers(0, 1, mConstantBuffer.GetAddressOf());
 
@@ -310,8 +354,27 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->VSSetShader(mVertexShader.Get(), nullptr, 0);
 	md3dImmediateContext->PSSetShader(mPixelShader.Get(), nullptr, 0);
 
-	// draw model
-	md3dImmediateContext->DrawIndexed(36, 0, 0);
+	// draw box
+		// direct3d는 행 벡터, hlsl은 열 벡터를 사용하므로 hlsl에 값을
+	// 제대로 전달하려면 전치를 해야합니다.
+	XMMATRIX world = XMLoadFloat4x4(&mBoxWorld);
+	XMMATRIX worldViewProj = XMMatrixTranspose(world * view * proj);
+
+	// update constant buffer
+	D3D11_MAPPED_SUBRESOURCE mapped = {};
+	md3dImmediateContext->Map(mConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	memcpy(mapped.pData, &worldViewProj, sizeof(XMMATRIX));
+	md3dImmediateContext->Unmap(mConstantBuffer.Get(), 0);
+	md3dImmediateContext->DrawIndexed(boxIndexCount, boxIndexOffset, boxVertexOffset);
+
+	// draw pyramid
+	world = XMLoadFloat4x4(&mPyramidWorld);
+	worldViewProj = XMMatrixTranspose(world * view * proj);
+	ZeroMemory(&mapped, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	md3dImmediateContext->Map(mConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	memcpy(mapped.pData, &worldViewProj, sizeof(XMMATRIX));
+	md3dImmediateContext->Unmap(mConstantBuffer.Get(), 0);
+	md3dImmediateContext->DrawIndexed(pyramidIndexCount, pyramidIndexOffset, pyramidVertexOffset);
 
 	// present front buffer
 	ThrowIfFailed(mSwapChain->Present(0, 0));

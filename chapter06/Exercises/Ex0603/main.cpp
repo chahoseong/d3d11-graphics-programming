@@ -36,7 +36,6 @@ private:
 
 private:
 	ComPtr<ID3D11Buffer> mBoxVB;
-	ComPtr<ID3D11Buffer> mBoxIB;
 
 	ComPtr<ID3D11InputLayout> mInputLayout;
 	ComPtr<ID3D11Buffer> mConstantBuffer;
@@ -110,14 +109,14 @@ bool BoxApp::Init()
 void BoxApp::BuildGeometryBuffers()
 {
 	Vertex vertices[] = {
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::White) },
-		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Black) },
-		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Red) },
-		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::Green) },
-		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Blue) },
-		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Yellow) },
-		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Cyan) },
-		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Magenta) }
+		{ XMFLOAT3(-2.5f, -0.2f, 0.0f), Convert::ToXmFloat4(Colors::White) },
+		{ XMFLOAT3(-2.0f, +1.0f, 0.0f), Convert::ToXmFloat4(Colors::Black) },
+		{ XMFLOAT3(-1.5f, -0.1f, 0.0f), Convert::ToXmFloat4(Colors::Red) },
+		{ XMFLOAT3(-0.5f, +0.7f, 0.0f), Convert::ToXmFloat4(Colors::Green) },
+		{ XMFLOAT3(+0.0f, +0.0f, 0.0f), Convert::ToXmFloat4(Colors::Blue) },
+		{ XMFLOAT3(+0.5f, +0.6f, 0.0f), Convert::ToXmFloat4(Colors::Yellow) },
+		{ XMFLOAT3(+1.0f, +0.1f, 0.0f), Convert::ToXmFloat4(Colors::Cyan) },
+		{ XMFLOAT3(+2.0f, +1.1f, 0.0f), Convert::ToXmFloat4(Colors::Magenta) }
 	};
 
 	D3D11_BUFFER_DESC vbd;
@@ -130,54 +129,13 @@ void BoxApp::BuildGeometryBuffers()
 	D3D11_SUBRESOURCE_DATA vinitData;
 	vinitData.pSysMem = vertices;
 	ThrowIfFailed(md3dDevice->CreateBuffer(&vbd, &vinitData, mBoxVB.GetAddressOf()));
-
-	UINT indices[] = {
-		// front
-		0, 1, 2,
-		0, 2, 3,
-
-		// back
-		4, 6, 5,
-		4, 7, 6,
-
-		// left
-		4, 5, 1,
-		4, 1, 0,
-
-		// right
-		3, 2, 6,
-		3, 6, 7,
-
-		// top
-		1, 5, 6,
-		1, 6, 2,
-
-		// bottom
-		4, 0, 3,
-		4, 3, 7
-	};
-
-	D3D11_BUFFER_DESC ibd;
-	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = sizeof(UINT) * 36;
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	ibd.CPUAccessFlags = 0;
-	ibd.MiscFlags = 0;
-	ibd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA iinitData;
-	iinitData.pSysMem = indices;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&ibd, &iinitData, mBoxIB.GetAddressOf()));
 }
 
 void BoxApp::BuildShaders()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(DEBUG) || defined(_DEBUG)
-	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
 	ComPtr<ID3DBlob> compiledShader;
-	ComPtr<ID3DBlob> errorMsg;
+	ComPtr<ID3DBlob> error;
 	
 	// compile and create vertex shader
 	HRESULT hr = D3DCompileFromFile(
@@ -189,16 +147,16 @@ void BoxApp::BuildShaders()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		errorMsg.GetAddressOf()
+		error.GetAddressOf()
 	);
 	
 	if (FAILED(hr))
 	{
-		if (errorMsg) {
-			std::cerr << errorMsg->GetBufferPointer() << std::endl;
-		}
+		const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
+		MessageBox(NULL, msg.c_str(), NULL, MB_OK);
 		return;
 	}
+
 
 	ThrowIfFailed(md3dDevice->CreateVertexShader(compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), nullptr, mVertexShader.GetAddressOf()));
 
@@ -212,13 +170,14 @@ void BoxApp::BuildShaders()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		errorMsg.GetAddressOf()
+		error.GetAddressOf()
 	);
 
 	if (FAILED(hr))
 	{
-		if (errorMsg) {
-			std::cerr << errorMsg->GetBufferPointer() << std::endl;
+		if (error) {
+			const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
+			MessageBox(NULL, msg.c_str(), NULL, MB_OK);
 		}
 		return;
 	}
@@ -229,12 +188,8 @@ void BoxApp::BuildShaders()
 void BoxApp::BuildVertexLayout()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(DEBUG) || defined(_DEBUG)
-	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
 	ComPtr<ID3DBlob> compiledShader;
-	ComPtr<ID3DBlob> errorMsg;
+	ComPtr<ID3DBlob> error;
 
 	HRESULT hr = D3DCompileFromFile(
 		L"color_vs.hlsl",
@@ -245,20 +200,21 @@ void BoxApp::BuildVertexLayout()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		errorMsg.GetAddressOf()
+		error.GetAddressOf()
 	);
 
 	if (FAILED(hr))
 	{
-		if (errorMsg) {
-			std::cerr << errorMsg->GetBufferPointer() << std::endl;
+		if (error) {
+			const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
+			MessageBox(NULL, msg.c_str(), NULL, MB_OK);
 		}
 		return;
 	}
 
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
@@ -284,12 +240,14 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->ClearDepthStencilView(mDepthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	md3dImmediateContext->IASetInputLayout(mInputLayout.Get());
-	md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+	//md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
+	//md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+	md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 	md3dImmediateContext->IASetVertexBuffers(0, 1, mBoxVB.GetAddressOf(), &stride, &offset);
-	md3dImmediateContext->IASetIndexBuffer(mBoxIB.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 	XMMATRIX world = XMLoadFloat4x4(&mWorld);
 	XMMATRIX view = XMLoadFloat4x4(&mView);
@@ -311,7 +269,7 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->PSSetShader(mPixelShader.Get(), nullptr, 0);
 
 	// draw model
-	md3dImmediateContext->DrawIndexed(36, 0, 0);
+	md3dImmediateContext->Draw(8, 0);
 
 	// present front buffer
 	ThrowIfFailed(mSwapChain->Present(0, 0));

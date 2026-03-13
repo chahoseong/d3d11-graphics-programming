@@ -3,7 +3,6 @@
 
 #include <d3dcompiler.h>
 
-
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
@@ -35,7 +34,8 @@ private:
 	void BuildVertexLayout();
 
 private:
-	ComPtr<ID3D11Buffer> mBoxVB;
+	ComPtr<ID3D11Buffer> mBoxPosVB;
+	ComPtr<ID3D11Buffer> mBoxColorVB;
 	ComPtr<ID3D11Buffer> mBoxIB;
 
 	ComPtr<ID3D11InputLayout> mInputLayout;
@@ -109,27 +109,49 @@ bool BoxApp::Init()
 
 void BoxApp::BuildGeometryBuffers()
 {
-	Vertex vertices[] = {
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::White) },
-		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Black) },
-		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Red) },
-		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::Green) },
-		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Blue) },
-		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Yellow) },
-		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Cyan) },
-		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Magenta) }
+	XMFLOAT3 positions[] = {
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f) },
+		{ XMFLOAT3(-1.0f, +1.0f, -1.0f) },
+		{ XMFLOAT3(+1.0f, +1.0f, -1.0f) },
+		{ XMFLOAT3(+1.0f, -1.0f, -1.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f, +1.0f) },
+		{ XMFLOAT3(-1.0f, +1.0f, +1.0f) },
+		{ XMFLOAT3(+1.0f, +1.0f, +1.0f) },
+		{ XMFLOAT3(+1.0f, -1.0f, +1.0f) },
 	};
 
-	D3D11_BUFFER_DESC vbd;
-	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = sizeof(Vertex) * 8;
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vbd.CPUAccessFlags = 0;
-	vbd.MiscFlags = 0;
-	vbd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA vinitData;
-	vinitData.pSysMem = vertices;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&vbd, &vinitData, mBoxVB.GetAddressOf()));
+	XMFLOAT4 colors[] = {
+		{ Convert::ToXmFloat4(Colors::White) },
+		{ Convert::ToXmFloat4(Colors::Black) },
+		{ Convert::ToXmFloat4(Colors::Red) },
+		{ Convert::ToXmFloat4(Colors::Green) },
+		{ Convert::ToXmFloat4(Colors::Blue) },
+		{ Convert::ToXmFloat4(Colors::Yellow) },
+		{ Convert::ToXmFloat4(Colors::Cyan) },
+		{ Convert::ToXmFloat4(Colors::Magenta) }
+	};
+
+	D3D11_BUFFER_DESC posbd;
+	posbd.Usage = D3D11_USAGE_IMMUTABLE;
+	posbd.ByteWidth = sizeof(XMFLOAT3) * 8;
+	posbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	posbd.CPUAccessFlags = 0;
+	posbd.MiscFlags = 0;
+	posbd.StructureByteStride = 0;
+	D3D11_SUBRESOURCE_DATA posinitData;
+	posinitData.pSysMem = positions;
+	ThrowIfFailed(md3dDevice->CreateBuffer(&posbd, &posinitData, mBoxPosVB.GetAddressOf()));
+
+	D3D11_BUFFER_DESC colorbd;
+	colorbd.Usage = D3D11_USAGE_IMMUTABLE;
+	colorbd.ByteWidth = sizeof(XMFLOAT4) * 8;
+	colorbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	colorbd.CPUAccessFlags = 0;
+	colorbd.MiscFlags = 0;
+	colorbd.StructureByteStride = 0;
+	D3D11_SUBRESOURCE_DATA colorinitData;
+	colorinitData.pSysMem = colors;
+	ThrowIfFailed(md3dDevice->CreateBuffer(&colorbd, &colorinitData, mBoxColorVB.GetAddressOf()));
 
 	UINT indices[] = {
 		// front
@@ -172,12 +194,8 @@ void BoxApp::BuildGeometryBuffers()
 void BoxApp::BuildShaders()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(DEBUG) || defined(_DEBUG)
-	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
 	ComPtr<ID3DBlob> compiledShader;
-	ComPtr<ID3DBlob> errorMsg;
+	ComPtr<ID3DBlob> error;
 	
 	// compile and create vertex shader
 	HRESULT hr = D3DCompileFromFile(
@@ -189,14 +207,13 @@ void BoxApp::BuildShaders()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		errorMsg.GetAddressOf()
+		error.GetAddressOf()
 	);
 	
 	if (FAILED(hr))
 	{
-		if (errorMsg) {
-			std::cerr << errorMsg->GetBufferPointer() << std::endl;
-		}
+		const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
+		MessageBox(NULL, msg.c_str(), NULL, MB_OK);
 		return;
 	}
 
@@ -212,13 +229,14 @@ void BoxApp::BuildShaders()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		errorMsg.GetAddressOf()
+		error.GetAddressOf()
 	);
 
 	if (FAILED(hr))
 	{
-		if (errorMsg) {
-			std::cerr << errorMsg->GetBufferPointer() << std::endl;
+		if (error) {
+			const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
+			MessageBox(NULL, msg.c_str(), NULL, MB_OK);
 		}
 		return;
 	}
@@ -229,12 +247,8 @@ void BoxApp::BuildShaders()
 void BoxApp::BuildVertexLayout()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(DEBUG) || defined(_DEBUG)
-	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
 	ComPtr<ID3DBlob> compiledShader;
-	ComPtr<ID3DBlob> errorMsg;
+	ComPtr<ID3DBlob> error;
 
 	HRESULT hr = D3DCompileFromFile(
 		L"color_vs.hlsl",
@@ -245,20 +259,21 @@ void BoxApp::BuildVertexLayout()
 		flags,
 		0,
 		compiledShader.GetAddressOf(),
-		errorMsg.GetAddressOf()
+		error.GetAddressOf()
 	);
 
 	if (FAILED(hr))
 	{
-		if (errorMsg) {
-			std::cerr << errorMsg->GetBufferPointer() << std::endl;
+		if (error) {
+			const std::wstring msg = TextHelper::ToString(reinterpret_cast<char*>(error->GetBufferPointer()));
+			MessageBox(NULL, msg.c_str(), NULL, MB_OK);
 		}
 		return;
 	}
 
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
@@ -286,9 +301,10 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->IASetInputLayout(mInputLayout.Get());
 	md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	md3dImmediateContext->IASetVertexBuffers(0, 1, mBoxVB.GetAddressOf(), &stride, &offset);
+	UINT strides[] = { sizeof(XMFLOAT3), sizeof(XMFLOAT4) };
+	UINT offsets[] = { 0, 0 };
+	ID3D11Buffer* VertexBuffers[] = { mBoxPosVB.Get(), mBoxColorVB.Get() };
+	md3dImmediateContext->IASetVertexBuffers(0, 2, VertexBuffers, strides, offsets);
 	md3dImmediateContext->IASetIndexBuffer(mBoxIB.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 	XMMATRIX world = XMLoadFloat4x4(&mWorld);

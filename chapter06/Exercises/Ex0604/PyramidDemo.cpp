@@ -1,8 +1,7 @@
-#include "d3dapp.h"
+#include "d3dApp.h"
 #include "MathHelper.h"
 
 #include <d3dcompiler.h>
-
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -13,18 +12,18 @@ struct Vertex
 	XMFLOAT4 Color;
 };
 
-class BoxApp : public D3DApp
+class PyramidApp : public D3DApp
 {
 public:
-	BoxApp(HINSTANCE hInstance);
-	~BoxApp();
+	PyramidApp(HINSTANCE hInstance);
+	~PyramidApp();
 
 	bool Init() override;
 	void UpdateScene(float dt) override;
 	void DrawScene() override;
-	
-	void OnResize() override;
 
+	void OnResize() override;
+	
 	void OnMouseDown(WPARAM btnState, int x, int y) override;
 	void OnMouseUp(WPARAM btnState, int x, int y) override;
 	void OnMouseMove(WPARAM btnState, int x, int y) override;
@@ -32,16 +31,19 @@ public:
 private:
 	void BuildGeometryBuffers();
 	void BuildShaders();
-	void BuildVertexLayout();
+	void BuildInputLayout();
+	void BuildConstantBuffer();
 
 private:
-	ComPtr<ID3D11Buffer> mBoxVB;
-	ComPtr<ID3D11Buffer> mBoxIB;
+	ComPtr<ID3D11Buffer> mVB;
+	ComPtr<ID3D11Buffer> mIB;
+	ComPtr<ID3D11Buffer> mCB;
 
 	ComPtr<ID3D11InputLayout> mInputLayout;
-	ComPtr<ID3D11Buffer> mConstantBuffer;
 	ComPtr<ID3D11VertexShader> mVertexShader;
 	ComPtr<ID3D11PixelShader> mPixelShader;
+
+	UINT mPyramidIndexCount = 0;
 
 	XMFLOAT4X4 mWorld;
 	XMFLOAT4X4 mView;
@@ -52,6 +54,7 @@ private:
 	float mRadius = 5.0f;
 
 	POINT mLastMousePos = { 0, 0 };
+
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -62,7 +65,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	BoxApp theApp(hInstance);
+	PyramidApp theApp(hInstance);
 
 	if (!theApp.Init())
 		return 0;
@@ -70,10 +73,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	return theApp.Run();
 }
 
-BoxApp::BoxApp(HINSTANCE hInstance)
+PyramidApp::PyramidApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
-	mMainWndCaption = L"Box Demo";
+	mMainWndCaption = L"Pyramid Demo";
 
 	XMMATRIX I = XMMatrixIdentity();
 	XMStoreFloat4x4(&mWorld, I);
@@ -81,11 +84,11 @@ BoxApp::BoxApp(HINSTANCE hInstance)
 	XMStoreFloat4x4(&mProj, I);
 }
 
-BoxApp::~BoxApp()
+PyramidApp::~PyramidApp()
 {
 }
 
-bool BoxApp::Init()
+bool PyramidApp::Init()
 {
 	if (!D3DApp::Init()) {
 		return false;
@@ -93,93 +96,74 @@ bool BoxApp::Init()
 
 	BuildGeometryBuffers();
 	BuildShaders();
-	BuildVertexLayout();
-
-	D3D11_BUFFER_DESC desc;
-	desc.Usage = D3D11_USAGE_DYNAMIC;
-	desc.ByteWidth = sizeof(XMFLOAT4X4);
-	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	desc.MiscFlags = 0;
-	desc.StructureByteStride = 0;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&desc, nullptr, mConstantBuffer.GetAddressOf()));
+	BuildInputLayout();
+	BuildConstantBuffer();
 
 	return true;
 }
 
-void BoxApp::BuildGeometryBuffers()
+void PyramidApp::BuildGeometryBuffers()
 {
-	Vertex vertices[] = {
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::White) },
-		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Black) },
-		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), Convert::ToXmFloat4(Colors::Red) },
-		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), Convert::ToXmFloat4(Colors::Green) },
-		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Blue) },
-		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Yellow) },
-		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), Convert::ToXmFloat4(Colors::Cyan) },
-		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), Convert::ToXmFloat4(Colors::Magenta) }
+	std::vector<Vertex> vertices = {
+		{ XMFLOAT3(-0.5f, -0.5f, +0.5f), Convert::ToXmFloat4(Colors::Green) },
+		{ XMFLOAT3(+0.5f, -0.5f, +0.5f), Convert::ToXmFloat4(Colors::Green) },
+		{ XMFLOAT3(+0.5f, -0.5f, -0.5f), Convert::ToXmFloat4(Colors::Green) },
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), Convert::ToXmFloat4(Colors::Green) },
+		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), Convert::ToXmFloat4(Colors::Red) }
 	};
 
 	D3D11_BUFFER_DESC vbd;
 	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = sizeof(Vertex) * 8;
+	vbd.ByteWidth = sizeof(Vertex) * static_cast<UINT>(vertices.size());
 	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vbd.CPUAccessFlags = 0;
 	vbd.MiscFlags = 0;
 	vbd.StructureByteStride = 0;
 	D3D11_SUBRESOURCE_DATA vinitData;
-	vinitData.pSysMem = vertices;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&vbd, &vinitData, mBoxVB.GetAddressOf()));
+	vinitData.pSysMem = &vertices[0];
+	ThrowIfFailed(md3dDevice->CreateBuffer(&vbd, &vinitData, mVB.GetAddressOf()));
 
-	UINT indices[] = {
+	std::vector<UINT> indices = {
+		// bottom
+		0, 3, 2,
+		0, 2, 1,
+
 		// front
-		0, 1, 2,
-		0, 2, 3,
+		3, 4, 2,
 
 		// back
-		4, 6, 5,
-		4, 7, 6,
+		1, 4, 0,
 
 		// left
-		4, 5, 1,
-		4, 1, 0,
+		0, 4, 3,
 
 		// right
-		3, 2, 6,
-		3, 6, 7,
-
-		// top
-		1, 5, 6,
-		1, 6, 2,
-
-		// bottom
-		4, 0, 3,
-		4, 3, 7
+		2, 4, 1
 	};
+	mPyramidIndexCount = static_cast<UINT>(indices.size());
 
 	D3D11_BUFFER_DESC ibd;
 	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = sizeof(UINT) * 36;
+	ibd.ByteWidth = sizeof(UINT) * mPyramidIndexCount;
 	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	ibd.CPUAccessFlags = 0;
 	ibd.MiscFlags = 0;
 	ibd.StructureByteStride = 0;
 	D3D11_SUBRESOURCE_DATA iinitData;
-	iinitData.pSysMem = indices;
-	ThrowIfFailed(md3dDevice->CreateBuffer(&ibd, &iinitData, mBoxIB.GetAddressOf()));
+	iinitData.pSysMem = &indices[0];
+	ThrowIfFailed(md3dDevice->CreateBuffer(&ibd, &iinitData, mIB.GetAddressOf()));
 }
 
-void BoxApp::BuildShaders()
+void PyramidApp::BuildShaders()
 {
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined(DEBUG) || defined(_DEBUG)
 	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
-
 	ComPtr<ID3DBlob> compiledShader;
 	ComPtr<ID3DBlob> errorMsg;
-	
-	// compile and create vertex shader
+
+	// create vertex shader
 	HRESULT hr = D3DCompileFromFile(
 		L"color_vs.hlsl",
 		nullptr,
@@ -191,9 +175,8 @@ void BoxApp::BuildShaders()
 		compiledShader.GetAddressOf(),
 		errorMsg.GetAddressOf()
 	);
-	
-	if (FAILED(hr))
-	{
+
+	if (FAILED(hr)) {
 		if (errorMsg) {
 			std::cerr << errorMsg->GetBufferPointer() << std::endl;
 		}
@@ -202,7 +185,7 @@ void BoxApp::BuildShaders()
 
 	ThrowIfFailed(md3dDevice->CreateVertexShader(compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), nullptr, mVertexShader.GetAddressOf()));
 
-	// compile and create pixel shader
+	// create pixel shader
 	hr = D3DCompileFromFile(
 		L"color_ps.hlsl",
 		nullptr,
@@ -215,8 +198,7 @@ void BoxApp::BuildShaders()
 		errorMsg.GetAddressOf()
 	);
 
-	if (FAILED(hr))
-	{
+	if (FAILED(hr)) {
 		if (errorMsg) {
 			std::cerr << errorMsg->GetBufferPointer() << std::endl;
 		}
@@ -226,13 +208,17 @@ void BoxApp::BuildShaders()
 	ThrowIfFailed(md3dDevice->CreatePixelShader(compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), nullptr, mPixelShader.GetAddressOf()));
 }
 
-void BoxApp::BuildVertexLayout()
+void PyramidApp::BuildInputLayout()
 {
+	D3D11_INPUT_ELEMENT_DESC desc[] = {
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined(DEBUG) || defined(_DEBUG)
 	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
-
 	ComPtr<ID3DBlob> compiledShader;
 	ComPtr<ID3DBlob> errorMsg;
 
@@ -248,28 +234,36 @@ void BoxApp::BuildVertexLayout()
 		errorMsg.GetAddressOf()
 	);
 
-	if (FAILED(hr))
-	{
+	if (FAILED(hr)) {
 		if (errorMsg) {
 			std::cerr << errorMsg->GetBufferPointer() << std::endl;
 		}
 		return;
 	}
 
-	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-
-	ThrowIfFailed(md3dDevice->CreateInputLayout(vertexDesc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
+	ThrowIfFailed(md3dDevice->CreateInputLayout(desc, 2, compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), mInputLayout.GetAddressOf()));
 }
 
-void BoxApp::UpdateScene(float dt)
+void PyramidApp::BuildConstantBuffer()
 {
+	D3D11_BUFFER_DESC cbd;
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	cbd.ByteWidth = sizeof(XMMATRIX);
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.MiscFlags = 0;
+	cbd.StructureByteStride = 0;
+	ThrowIfFailed(md3dDevice->CreateBuffer(&cbd, nullptr, mCB.GetAddressOf()));
+}
+
+void PyramidApp::UpdateScene(float dt)
+{
+	// Convert Spherical to Cartesian coordinates.
 	float x = mRadius * sinf(mPhi) * cosf(mTheta);
 	float z = mRadius * sinf(mPhi) * sinf(mTheta);
 	float y = mRadius * cosf(mPhi);
 
+	// Build the view matrix.
 	XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -278,9 +272,9 @@ void BoxApp::UpdateScene(float dt)
 	XMStoreFloat4x4(&mView, V);
 }
 
-void BoxApp::DrawScene()
+void PyramidApp::DrawScene()
 {
-	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView.Get(), Colors::LightSteelBlue);
+	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView.Get(), reinterpret_cast<const float*>(&Colors::LightSteelBlue));
 	md3dImmediateContext->ClearDepthStencilView(mDepthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	md3dImmediateContext->IASetInputLayout(mInputLayout.Get());
@@ -288,36 +282,32 @@ void BoxApp::DrawScene()
 
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
-	md3dImmediateContext->IASetVertexBuffers(0, 1, mBoxVB.GetAddressOf(), &stride, &offset);
-	md3dImmediateContext->IASetIndexBuffer(mBoxIB.Get(), DXGI_FORMAT_R32_UINT, 0);
+	md3dImmediateContext->IASetVertexBuffers(0, 1, mVB.GetAddressOf(), &stride, &offset);
+	md3dImmediateContext->IASetIndexBuffer(mIB.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 	XMMATRIX world = XMLoadFloat4x4(&mWorld);
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
-	// direct3d는 행 벡터, hlsl은 열 벡터를 사용하므로 hlsl에 값을
-	// 제대로 전달하려면 전치를 해야합니다.
 	XMMATRIX worldViewProj = XMMatrixTranspose(world * view * proj);
 
-	// update constant buffer
 	D3D11_MAPPED_SUBRESOURCE mapped = {};
-	md3dImmediateContext->Map(mConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	md3dImmediateContext->Map(mCB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
 	memcpy(mapped.pData, &worldViewProj, sizeof(XMMATRIX));
-	md3dImmediateContext->Unmap(mConstantBuffer.Get(), 0);
+	md3dImmediateContext->Unmap(mCB.Get(), 0);
 
-	md3dImmediateContext->VSSetConstantBuffers(0, 1, mConstantBuffer.GetAddressOf());
-
-	// set shaders
+	// vertex shader
 	md3dImmediateContext->VSSetShader(mVertexShader.Get(), nullptr, 0);
+	md3dImmediateContext->VSSetConstantBuffers(0, 1, mCB.GetAddressOf());
+
+	// pixel shader
 	md3dImmediateContext->PSSetShader(mPixelShader.Get(), nullptr, 0);
 
-	// draw model
-	md3dImmediateContext->DrawIndexed(36, 0, 0);
+	md3dImmediateContext->DrawIndexed(mPyramidIndexCount, 0, 0);
 
-	// present front buffer
 	ThrowIfFailed(mSwapChain->Present(0, 0));
 }
 
-void BoxApp::OnResize()
+void PyramidApp::OnResize()
 {
 	D3DApp::OnResize();
 
@@ -325,7 +315,7 @@ void BoxApp::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void BoxApp::OnMouseDown(WPARAM btnState, int x, int y)
+void PyramidApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -333,12 +323,12 @@ void BoxApp::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void BoxApp::OnMouseUp(WPARAM btnState, int x, int y)
+void PyramidApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
+void PyramidApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0) {
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));

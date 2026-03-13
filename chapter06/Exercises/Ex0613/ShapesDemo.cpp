@@ -142,7 +142,7 @@ bool ShapesApp::Init()
 	wireframeDesc.CullMode = D3D11_CULL_BACK;
 	wireframeDesc.FrontCounterClockwise = false;
 	wireframeDesc.DepthClipEnable = true;
-
+	// wireframeDesc.ScissorEnable = true;
 	ThrowIfFailed(md3dDevice->CreateRasterizerState(&wireframeDesc, mWireframeRS.GetAddressOf()));
 
 	return true;
@@ -393,6 +393,9 @@ void ShapesApp::DrawScene()
 	md3dImmediateContext->PSSetShader(mPixelShader.Get(), nullptr, 0);
 
 	md3dImmediateContext->VSSetConstantBuffers(0, 1, mCB.GetAddressOf());
+
+	//D3D11_RECT rects = { 100, 100, 400, 400 };
+	//md3dImmediateContext->RSSetScissorRects(1, &rects);
 
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
