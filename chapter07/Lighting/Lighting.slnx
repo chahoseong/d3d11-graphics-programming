@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Lighting.vcxproj" Id="61265441-1e1a-4e32-a64e-1649f4e213be" />
+</Solution>

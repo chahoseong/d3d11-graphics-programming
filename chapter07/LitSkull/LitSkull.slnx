@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="LitSkull.vcxproj" Id="1bc84c95-1206-4b0a-b726-719259287354" />
+</Solution>

@@ -1,0 +1,153 @@
+#include "GraphicsPipeline.h"
+
+#include <iostream>
+
+#include <d3dcompiler.h>
+
+
+using namespace DirectX;
+using namespace Microsoft::WRL;
+
+GraphicsPipeline::GraphicsPipeline(ID3D11Device* device)
+	: md3dDevice(device)
+{
+}
+
+Microsoft::WRL::ComPtr<ID3DBlob> GraphicsPipeline::CompileShader(const std::wstring& filename, const std::string& target) const
+{
+	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
+	flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+	ComPtr<ID3DBlob> compiledShader;
+	ComPtr<ID3DBlob> errorMsg;
+
+	// compile and create vertex shader
+	HRESULT hr = D3DCompileFromFile(
+		filename.c_str(),
+		nullptr,
+		D3D_COMPILE_STANDARD_FILE_INCLUDE,
+		"main",
+		target.c_str(),
+		flags,
+		0,
+		compiledShader.GetAddressOf(),
+		errorMsg.GetAddressOf()
+	);
+
+	if (FAILED(hr))
+	{
+		if (errorMsg) {
+			std::cerr << errorMsg->GetBufferPointer() << std::endl;
+		}
+		return nullptr;
+	}
+
+	return compiledShader;
+}
+
+ComPtr<ID3D11VertexShader> GraphicsPipeline::CreateVertexShader(const std::wstring& filename, ComPtr<ID3DBlob>* outCompiledShader)
+{
+	ComPtr<ID3DBlob> compiled = CompileShader(filename, "vs_5_0");
+	if (!compiled) {
+		return nullptr;
+	}
+
+	if (outCompiledShader) {
+		*outCompiledShader = compiled;
+	}
+	
+	ComPtr<ID3D11VertexShader> vs;
+	md3dDevice->CreateVertexShader(compiled->GetBufferPointer(), compiled->GetBufferSize(), nullptr, vs.GetAddressOf());
+
+	return vs;
+
+}
+
+ComPtr<ID3D11PixelShader> GraphicsPipeline::CreatePixelShader(const std::wstring& filename, ComPtr<ID3DBlob>* outCompiledShader)
+{
+	ComPtr<ID3DBlob> compiled = CompileShader(filename, "ps_5_0");
+	if (!compiled) {
+		return nullptr;
+	}
+
+	if (outCompiledShader) {
+		*outCompiledShader = compiled;
+	}
+
+	ComPtr<ID3D11PixelShader> ps;
+	md3dDevice->CreatePixelShader(compiled->GetBufferPointer(), compiled->GetBufferSize(), nullptr, ps.GetAddressOf());
+	
+	return ps;
+}
+
+
+BasicGraphicsPipeline::BasicGraphicsPipeline(ID3D11Device* device)
+	: GraphicsPipeline(device), mFrameCB(device), mObjectCB(device)
+{
+	mVertexShader = CreateVertexShader(L"basic.vertex.hlsl", &CompiledVertexShader);
+	mPixelShader = CreatePixelShader(L"basic.pixel.hlsl", nullptr);
+}
+
+void BasicGraphicsPipeline::SetWorld(CXMMATRIX M)
+{
+	XMStoreFloat4x4(&mObjectCB.data.world, XMMatrixTranspose(M));
+}
+
+void BasicGraphicsPipeline::SetWorldInvTranspose(CXMMATRIX M)
+{
+	XMStoreFloat4x4(&mObjectCB.data.worldInvTranspose, XMMatrixTranspose(M));
+}
+
+void BasicGraphicsPipeline::SetWorldViewProj(CXMMATRIX M)
+{
+	XMStoreFloat4x4(&mObjectCB.data.worldViewProj, XMMatrixTranspose(M));
+}
+
+void BasicGraphicsPipeline::SetEyePosW(const XMFLOAT3& v)
+{
+	mFrameCB.data.eyePosW = v;
+}
+
+void BasicGraphicsPipeline::SetDirLights(const DirectionalLight* lights, int count)
+{
+	memcpy(&mFrameCB.data.dirLights[0], lights, sizeof(DirectionalLight) * count);
+	mFrameCB.data.lightCount = count;
+}
+
+void BasicGraphicsPipeline::SetMaterial(const Material& mat)
+{
+	mObjectCB.data.material = mat;
+}
+
+void BasicGraphicsPipeline::Apply(ID3D11DeviceContext* context) const
+{
+	mFrameCB.Update(context);
+	mObjectCB.Update(context);
+
+	context->VSSetShader(mVertexShader.Get(), nullptr, 0);
+	{
+		ID3D11Buffer* constantBuffers[] = { mObjectCB.handle.Get()};
+		context->VSSetConstantBuffers(1, 1, constantBuffers);
+	}
+
+	context->PSSetShader(mPixelShader.Get(), nullptr, 0);
+	{
+		ID3D11Buffer* constantBuffers[] = { mFrameCB.handle.Get(), mObjectCB.handle.Get() };
+		context->PSSetConstantBuffers(0, 2, constantBuffers);
+	}
+}
+
+
+BasicGraphicsPipeline* Pipelines::Basic = nullptr;
+
+void Pipelines::InitAll(ID3D11Device* device)
+{
+	Basic = new BasicGraphicsPipeline(device);
+}
+
+void Pipelines::DestroyAll()
+{
+	delete Basic;
+}
