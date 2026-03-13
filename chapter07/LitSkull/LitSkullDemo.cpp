@@ -170,7 +170,7 @@ bool LitSkullApp::Init()
 	}
 
 	Pipelines::InitAll(md3dDevice.Get());
-	InputLayouts::InitAll(md3dDevice.Get());
+	InputLayouts::InitAll(md3dDevice.Get(), Pipelines::Basic->GetVertexShaderBytecode());
 
 	BuildShapeGeometryBuffers();
 	BuildSkullGeometryBuffers();

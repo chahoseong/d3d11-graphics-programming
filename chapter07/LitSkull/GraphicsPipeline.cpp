@@ -86,8 +86,7 @@ ComPtr<ID3D11PixelShader> GraphicsPipeline::CreatePixelShader(const std::wstring
 BasicGraphicsPipeline::BasicGraphicsPipeline(ID3D11Device* device)
 	: GraphicsPipeline(device), mFrameCB(device), mObjectCB(device)
 {
-	mVertexShader = CreateVertexShader(L"basic.vertex.hlsl", &CompiledVertexShader);
-	mPixelShader = CreatePixelShader(L"basic.pixel.hlsl", nullptr);
+	LoadShaders();
 }
 
 void BasicGraphicsPipeline::SetWorld(CXMMATRIX M)
@@ -121,21 +120,46 @@ void BasicGraphicsPipeline::SetMaterial(const Material& mat)
 	mObjectCB.data.material = mat;
 }
 
+ShaderBytecodeView BasicGraphicsPipeline::GetVertexShaderBytecode() const
+{
+	return { mCompiledVertexShader->GetBufferPointer(), mCompiledVertexShader->GetBufferSize() };
+}
+
 void BasicGraphicsPipeline::Apply(ID3D11DeviceContext* context) const
 {
-	mFrameCB.Update(context);
-	mObjectCB.Update(context);
+	UpdateFrameBuffer(context);
+	UpdateObjectBuffer(context);
+	Bind(context);
+}
 
+void BasicGraphicsPipeline::LoadShaders()
+{
+	mVertexShader = CreateVertexShader(L"basic.vertex.hlsl", &mCompiledVertexShader);
+	mPixelShader = CreatePixelShader(L"basic.pixel.hlsl", nullptr);
+}
+
+void BasicGraphicsPipeline::UpdateFrameBuffer(ID3D11DeviceContext* context) const
+{
+	mFrameCB.Update(context);
+}
+
+void BasicGraphicsPipeline::UpdateObjectBuffer(ID3D11DeviceContext* context) const
+{
+	mObjectCB.Update(context);
+}
+
+void BasicGraphicsPipeline::Bind(ID3D11DeviceContext* context) const
+{
 	context->VSSetShader(mVertexShader.Get(), nullptr, 0);
 	{
 		ID3D11Buffer* constantBuffers[] = { mObjectCB.handle.Get()};
-		context->VSSetConstantBuffers(1, 1, constantBuffers);
+		context->VSSetConstantBuffers(ObjectBufferSlot, 1, constantBuffers);
 	}
 
 	context->PSSetShader(mPixelShader.Get(), nullptr, 0);
 	{
 		ID3D11Buffer* constantBuffers[] = { mFrameCB.handle.Get(), mObjectCB.handle.Get() };
-		context->PSSetConstantBuffers(0, 2, constantBuffers);
+		context->PSSetConstantBuffers(FrameBufferSlot, 2, constantBuffers);
 	}
 }
 

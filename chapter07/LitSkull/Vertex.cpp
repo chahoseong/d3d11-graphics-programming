@@ -1,5 +1,4 @@
 #include "Vertex.h"
-#include "GraphicsPipeline.h"
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -11,12 +10,12 @@ const std::array<D3D11_INPUT_ELEMENT_DESC, 2> InputLayoutDesc::PosNormal = { {
 
 ComPtr<ID3D11InputLayout> InputLayouts::PosNormal;
 
-void InputLayouts::InitAll(ID3D11Device* device)
+void InputLayouts::InitAll(ID3D11Device* device, ShaderBytecodeView basicVertexShaderBytecode)
 {
 	device->CreateInputLayout(InputLayoutDesc::PosNormal.data(),
 		InputLayoutDesc::PosNormal.size(),
-		Pipelines::Basic->CompiledVertexShader->GetBufferPointer(),
-		Pipelines::Basic->CompiledVertexShader->GetBufferSize(),
+		basicVertexShaderBytecode.pointer,
+		basicVertexShaderBytecode.size,
 		PosNormal.GetAddressOf());
 }
 

@@ -3,11 +3,19 @@
 #include "LightHelper.h"
 
 #include <array>
+#include <cstring>
 #include <string>
+#include <type_traits>
 
 #include <d3d11.h>
 #include <DirectXMath.h>
 #include <wrl.h>
+
+struct ShaderBytecodeView
+{
+	const void* pointer = nullptr;
+	SIZE_T size = 0;
+};
 
 template <typename T>
 class ConstantBuffer
@@ -18,6 +26,9 @@ public:
 
 	ConstantBuffer(ID3D11Device* device)
 	{
+		static_assert(std::is_trivially_copyable_v<T>, "Constant buffers must be trivially copyable.");
+		static_assert((sizeof(T) % 16) == 0, "Constant buffer size must be a multiple of 16 bytes.");
+
 		D3D11_BUFFER_DESC desc;
 		desc.Usage = D3D11_USAGE_DYNAMIC;
 		desc.ByteWidth = sizeof(T);
@@ -51,6 +62,8 @@ protected:
 	ID3D11Device* md3dDevice;
 };
 
+// BasicGraphicsPipeline owns the shader pair and constant buffers for the
+// chapter 7 directional-lighting example.
 class BasicGraphicsPipeline : public GraphicsPipeline
 {
 	struct alignas(16) FrameData
@@ -74,9 +87,13 @@ class BasicGraphicsPipeline : public GraphicsPipeline
 	};
 
 public:
-	BasicGraphicsPipeline(ID3D11Device* device);
+	enum ShaderSlot : UINT
+	{
+		FrameBufferSlot = 0,
+		ObjectBufferSlot = 1,
+	};
 
-	Microsoft::WRL::ComPtr<ID3DBlob> CompiledVertexShader;
+	BasicGraphicsPipeline(ID3D11Device* device);
 
 	void SetWorld(DirectX::CXMMATRIX M);
 	void SetWorldInvTranspose(DirectX::CXMMATRIX M);
@@ -86,10 +103,17 @@ public:
 	void SetMaterial(const Material& mat);
 
 	void Apply(ID3D11DeviceContext* context) const;
+	ShaderBytecodeView GetVertexShaderBytecode() const;
 
 private:
+	void LoadShaders();
+	void UpdateFrameBuffer(ID3D11DeviceContext* context) const;
+	void UpdateObjectBuffer(ID3D11DeviceContext* context) const;
+	void Bind(ID3D11DeviceContext* context) const;
+
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> mVertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> mPixelShader;
+	Microsoft::WRL::ComPtr<ID3DBlob> mCompiledVertexShader;
 
 	ConstantBuffer<FrameData> mFrameCB;
 	ConstantBuffer<ObjectData> mObjectCB;
