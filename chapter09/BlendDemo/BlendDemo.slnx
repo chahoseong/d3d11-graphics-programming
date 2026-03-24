@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="BlendDemo.vcxproj" Id="f7a73c63-4fe5-4f9f-b91b-23f823615e3b" />
+</Solution>
