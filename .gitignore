@@ -73,3 +73,5 @@ install_manifest.txt
 *.opensdf
 *.VC.db
 *.VC.opendb
+
+*.pdf
