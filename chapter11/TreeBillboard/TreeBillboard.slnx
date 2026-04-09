@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="TreeBillboard.vcxproj" Id="057abd8b-a02f-471e-852d-b4dfe36feb30" />
+</Solution>

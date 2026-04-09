@@ -47,9 +47,9 @@ ComPtr<ID3D11ShaderResourceView> d3dHelper::CreateTexture2DArraySRV(
 				device,
 				filenames[i].c_str(),
 				0,
-				D3D11_USAGE_DEFAULT,
+				D3D11_USAGE_STAGING,
 				0,
-				0,
+				D3D11_CPU_ACCESS_READ,
 				0,
 				DDS_LOADER_DEFAULT,
 				resource.GetAddressOf(),
@@ -108,17 +108,21 @@ ComPtr<ID3D11ShaderResourceView> d3dHelper::CreateTexture2DArraySRV(
 		// for each mipmap level...
 		for(UINT mipLevel = 0; mipLevel < texElementDesc.MipLevels; ++mipLevel)
 		{
-			const UINT srcSubresource = D3D11CalcSubresource(mipLevel, 0, texElementDesc.MipLevels);
+			D3D11_MAPPED_SUBRESOURCE mappedTex2D;
+			ThrowIfFailed(context->Map(srcTex[texElement].Get(), mipLevel, D3D11_MAP_READ, 0, &mappedTex2D));
+			
 			const UINT dstSubresource = D3D11CalcSubresource(mipLevel, texElement, texElementDesc.MipLevels);
-			context->CopySubresourceRegion(
+
+			context->UpdateSubresource(
 				texArray.Get(),
 				dstSubresource,
-				0,
-				0,
-				0,
-				srcTex[texElement].Get(),
-				srcSubresource,
-				nullptr);
+				nullptr,
+				mappedTex2D.pData,
+				mappedTex2D.RowPitch,
+				mappedTex2D.DepthPitch
+			);
+
+			context->Unmap(srcTex[texElement].Get(), mipLevel);
 		}
 	}	
 
